@@ -1,6 +1,6 @@
-														Data Preparation Project - NYC GT Data
+										Data Preparation Project - NYC GT Data
 This R markdown file cleans and prepares two datasets on NYC Gifted & Talented (GT) exam results from 2017-2018 and 2018-2019.
-Datasets
+# Datasets
 The two original datasets are:
 Copy of G&T Results 2017-18 (Responses) - Form Responses 1.xlsx
 Copy of G&T Results 2018-19 Responses - Sheet1.xlsx
