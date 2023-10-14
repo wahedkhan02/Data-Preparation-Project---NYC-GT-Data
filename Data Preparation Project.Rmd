@@ -1,0 +1,164 @@
+---
+title: "Data Preparation Project - NYC GT Data"
+author: "Wahed Khan"
+date: "2023-10-14"
+output: html_document
+---
+
+```{r}
+# Load libraries
+library(dplyr)
+library(ggplot2)
+library(readxl)
+# For data processing and visualization, the libraries dplyr, ggplot2, and readxl are loaded.
+```
+
+```{r}
+# Loading the two datasets
+data_2017_18 <- read_excel("Copy of G&T Results 2017-18 (Responses) - Form Responses 1.xlsx")
+data_2018_19 <- read_excel("Copy of G&T Results 2018-19 Responses - Sheet1.xlsx")
+colnames(data_2017_18)
+colnames(data_2018_19)
+# The two spreadsheets "Copy of G&T Results 2017-18 (Responses) - Form Responses 1.xlsx" and "Copy of G&T Results 2018-19 Responses - Sheet1.xlsx" were loaded and given the labels "data_2017_18" and "data_2018_19," respectively.
+```
+
+```{r}
+# combining the two datasets into one datafile
+data_2018_19 <- data_2018_19[, -c(13, 14)]
+
+combined_data <- rbind(data_2017_18, data_2018_19)
+# The two datasets are combined into one dataset named "combined_data,".
+```
+
+```{r}
+# Checking the structure and summary statistics
+print("structure")
+str(combined_data)
+print("Summary")
+summary(combined_data)
+```
+
+```{r}
+# Changing data types
+combined_data$`Entering Grade Level` <- as.factor(combined_data$`Entering Grade Level`)
+# The "Entering Grade Level" column is changed from a characteristic datatype to a factor by this line.
+combined_data$`Birth Month` <- as.factor(combined_data$`Birth Month`)
+# This line converts the "Birth Month" column from a characteristic datatype to a factor.
+combined_data$`OLSAT Verbal Score` <- as.numeric(sub("/.*", "", combined_data$`OLSAT Verbal Score`))
+# This line converts the character datatype in the "OLSAT Verbal Score" column to a numerical number.
+combined_data$`OLSAT Verbal Percentile` <- as.numeric(combined_data$`OLSAT Verbal Percentile`)
+# The "OLSAT Verbal Percentile" column is being converted to a numeric data type in this line.
+combined_data$`NNAT Non Verbal Raw Score` <- as.numeric(combined_data$`NNAT Non Verbal Raw Score`)
+# The "NNAT Non Verbal Raw Score" column is changed to a numeric data type.
+combined_data$`NNAT Non Verbal Percentile` <- as.numeric(combined_data$`NNAT Non Verbal Percentile`)
+# It changes the data type of the "NNAT Non Verbal Percentile" field to numeric.
+combined_data$`Will you enroll there?` <- as.factor(combined_data$`Will you enroll there?`)
+# line converts the "Will you enroll there?" column's data type to a factor.
+combined_data$Timestamp <- as.Date(combined_data$Timestamp)
+# It converts the "Timestamp" column to a Date data type. 
+```
+
+```{r}
+# Checking whether there are any null values in each column of the combined data
+null_values <- colSums(is.na(combined_data))
+print(null_values)
+```
+
+```{r}
+# Fill null values in numeric columns with the mean value
+combined_data$`OLSAT Verbal Score` <- ifelse(is.na(combined_data$`OLSAT Verbal Score`), mean(combined_data$`OLSAT Verbal Score`, na.rm = TRUE), combined_data$`OLSAT Verbal Score`)
+combined_data$`OLSAT Verbal Percentile` <- ifelse(is.na(combined_data$`OLSAT Verbal Percentile`), mean(combined_data$`OLSAT Verbal Percentile`, na.rm = TRUE), combined_data$`OLSAT Verbal Percentile`)
+combined_data$`NNAT Non Verbal Raw Score` <- ifelse(is.na(combined_data$`NNAT Non Verbal Raw Score`), mean(combined_data$`NNAT Non Verbal Raw Score`, na.rm = TRUE), combined_data$`NNAT Non Verbal Raw Score`)
+combined_data$`NNAT Non Verbal Percentile` <- ifelse(is.na(combined_data$`NNAT Non Verbal Percentile`), mean(combined_data$`NNAT Non Verbal Percentile`, na.rm = TRUE), combined_data$`NNAT Non Verbal Percentile`)
+combined_data$`Overall Score` <- ifelse(is.na(combined_data$`Overall Score`), mean(combined_data$`Overall Score`, na.rm = TRUE), combined_data$`Overall Score`)
+
+# Fill null values in categorical columns with the mode (most frequent value)
+mean_timestamp <- as.Date(mean(combined_data$Timestamp, na.rm = TRUE), origin = "1970-01-01")
+combined_data$Timestamp[is.na(combined_data$Timestamp)] <- mean_timestamp
+combined_data$`Entering Grade Level` <- ifelse(is.na(combined_data$`Entering Grade Level`), mode(combined_data$`Entering Grade Level`), combined_data$`Entering Grade Level`)
+combined_data$`School Preferences` <- ifelse(is.na(combined_data$`School Preferences`), mode(combined_data$`School Preferences`), combined_data$`School Preferences`)
+combined_data$`School Assigned` <- ifelse(is.na(combined_data$`School Assigned`), mode(combined_data$`School Assigned`), combined_data$`School Assigned`)
+combined_data$`District` <- ifelse(is.na(combined_data$`District`), mode(combined_data$`District`), combined_data$`District`)
+combined_data$`Birth Month` <- ifelse(is.na(combined_data$`Birth Month`), mode(combined_data$`Birth Month`), combined_data$`Birth Month`)
+combined_data$`Will you enroll there?` <- ifelse(is.na(combined_data$`Will you enroll there?`), mode(combined_data$`Will you enroll there?`), combined_data$`Will you enroll there?`)
+# The code replaces the mean value for missing (null) values in numeric columns and the mode (most common value) for missing values in categorical fields.
+```
+
+```{r}
+# Identify outliers in all numeric columns
+library(ggplot2)
+
+numeric_columns <- combined_data %>%
+  select_if(is.numeric)
+
+for (col in colnames(numeric_columns)) {
+  p <- ggplot(combined_data, aes(x = .data[[col]]) ) +
+    geom_boxplot() +
+    labs(title = paste("Boxplot for", col))
+  print(p)
+}
+# The code generates a series of boxplots, one for each numerical column in the "combined_data" data frame, to check for outliers.
+```
+
+```{r}
+# Handling Outliers values
+numeric_columns <- combined_data %>%
+  select_if(is.numeric) %>%
+  select(-`Entering Grade Level`)
+
+winsorize_single_column <- function(x, q1, q3) {
+  ifelse(x < q1, q1, ifelse(x > q3, q3, x))
+}
+
+for (col in colnames(numeric_columns)) {
+  q1 <- quantile(combined_data[, col], 0.25, na.rm = TRUE)
+  q3 <- quantile(combined_data[, col], 0.75, na.rm = TRUE)
+  combined_data <- combined_data %>%
+    mutate_at(vars(col), list(~ winsorize_single_column(., q1, q3)))
+}
+
+summary(combined_data)
+# The code handles outliers in numerical columns of a data frame called "combined_data" by utilizing winsorization.
+```
+
+```{r}
+combined_data$District <- ifelse(combined_data$District == "MisspelledDistrict", "CorrectDistrict", combined_data$District)
+# The code is intended to correct instances where the "District" column contains the value "MisspelledDistrict" and replace it with "CorrectDistrict".
+```
+
+```{r}
+library(ggplot2)
+ggplot(combined_data, aes(x = `OLSAT Verbal Score`)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Histogram of OLSAT Verbal Score")
+# The "OLSAT Verbal Score" values in the "combined_data" data frame are distributed as a histogram by code.
+```
+
+```{r}
+ggplot(combined_data, aes(x = District, y = `Overall Score`)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "Overall Score by District")
+# The "Overall Score" distribution by district can be seen in a boxplot, enabling score comparison by district.
+```
+
+```{r}
+ggplot(combined_data, aes(x = `Timestamp`, y = `Overall Score`)) +
+  geom_line(color = "red") +
+  labs(title = "Overall Score Over Time")
+# A line graph showing the "Overall Score" over time (timestamp) provides information on score patterns over the specified time frame.
+```
+
+```{r}
+ggplot(combined_data, aes(x = `OLSAT Verbal Score`, y = `NNAT Non Verbal Raw Score`)) +
+  geom_point(color = "purple") +
+  labs(title = "Scatterplot of OLSAT Verbal Score vs. NNAT Non Verbal Raw Score")
+# There may be relationships between the "OLSAT Verbal Score" and the "NNAT Non Verbal Raw Score," as shown by the scatterplot that compares.
+```
+
+```{r}
+library(writexl)
+
+# Save cleaned dataset as an Excel file
+write_xlsx(combined_data, path = "G&T Results cleaned_data.xlsx")
+```
+
